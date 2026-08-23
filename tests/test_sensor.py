@@ -310,7 +310,5 @@ def test_cat_visits_today_none_without_device(sample_device, sample_cat):
     coord = MagicMock()
     coord.data = NeakasaPayload(devices={})
     coord.last_update_success = True
-    s = NeakasaCatVisitsTodaySensor(
-        _coord_with(snap), sample_device.iot_id, sample_cat.id
-    )
+    s = NeakasaCatVisitsTodaySensor(coord, sample_device.iot_id, sample_cat.id)
     assert s.native_value is None
