@@ -50,6 +50,7 @@ def _make_snapshot(
             sample_cat.id: {
                 "last_visit_at": 1_700_000_500,
                 "last_visit_weight": 4.65,
+                "last_visit_weight_unit": "kg",
                 "visits_today": 3,
             },
         }
@@ -309,5 +310,7 @@ def test_cat_visits_today_none_without_device(sample_device, sample_cat):
     coord = MagicMock()
     coord.data = NeakasaPayload(devices={})
     coord.last_update_success = True
-    s = NeakasaCatVisitsTodaySensor(coord, sample_device.iot_id, sample_cat.id)
+    s = NeakasaCatVisitsTodaySensor(
+        _coord_with(snap), sample_device.iot_id, sample_cat.id
+    )
     assert s.native_value is None
