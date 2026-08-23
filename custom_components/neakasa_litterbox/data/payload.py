@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -26,6 +26,7 @@ class NeakasaCatStats(TypedDict):
 
     last_visit_at: int | None
     last_visit_weight: float | None
+    last_visit_weight_unit: NotRequired[str | None]
     visits_today: int
 
 
