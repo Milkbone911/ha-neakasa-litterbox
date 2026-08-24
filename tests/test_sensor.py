@@ -50,6 +50,7 @@ def _make_snapshot(
             sample_cat.id: {
                 "last_visit_at": 1_700_000_500,
                 "last_visit_weight": 4.65,
+                "last_visit_weight_unit": "kg",
                 "visits_today": 3,
             },
         }
