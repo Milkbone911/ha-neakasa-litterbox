@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
@@ -76,8 +77,6 @@ async def test_setup_entry_lists_all_sensor_states(hass, setup_integration):
 
 
 def test_operating_state_maps_to_option(sample_device, sample_status, sample_cat):
-    import dataclasses
-
     status = dataclasses.replace(sample_status, operating_state=OperatingState.CLEANING)
     snap = _make_snapshot(sample_device, status, sample_cat)
     s = NeakasaOperatingStateSensor(_coord_with(snap), sample_device.iot_id)
@@ -93,8 +92,6 @@ def test_operating_state_maps_to_option(sample_device, sample_status, sample_cat
 
 
 def test_operating_state_unknown_becomes_none(sample_device, sample_status, sample_cat):
-    import dataclasses
-
     status = dataclasses.replace(sample_status, operating_state=OperatingState.UNKNOWN)
     snap = _make_snapshot(sample_device, status, sample_cat)
     s = NeakasaOperatingStateSensor(_coord_with(snap), sample_device.iot_id)
@@ -204,8 +201,6 @@ def test_cat_weight_uses_pounds_from_latest_record(
 def test_cat_weight_falls_back_to_profile_unit(
     sample_device, sample_status, sample_cat
 ):
-    import dataclasses
-
     cat = dataclasses.replace(sample_cat, unit="lb")
     snap = _make_snapshot(
         sample_device,
