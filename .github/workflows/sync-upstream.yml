@@ -1,0 +1,164 @@
+name: Sync upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 10 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPOSITORY: roquerodrigo/ha-neakasa-litterbox
+  PR_BRANCH: validation/upstream-base
+
+jobs:
+  sync-main:
+    name: Sync custom main
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out custom main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch upstream
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch --no-tags upstream main
+
+      - name: Merge upstream into custom main
+        id: merge
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "main already contains upstream/main"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git merge --no-edit upstream/main; then
+            git merge --abort || true
+            echo "::error::Upstream merge conflicted. main was not changed. Resolve the conflict manually, then rerun this workflow."
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python and dependencies
+        if: steps.merge.outputs.changed == 'true'
+        uses: roquerodrigo/workflows/actions/setup-python@main
+        with:
+          python-version: "3.14"
+          groups: dev lint
+
+      - name: Validate Python
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest
+
+      - name: Validate Home Assistant manifest
+        if: steps.merge.outputs.changed == 'true'
+        uses: home-assistant/actions/hassfest@a7c616ce81ccda50150bf1595786c71b1883fabb
+
+      - name: Validate version consistency
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          manifest_version=$(jq -r .version custom_components/*/manifest.json)
+          project_version=$(grep -m1 '^version' pyproject.toml | awk -F'"' '{print $2}')
+          if [ "$manifest_version" != "$project_version" ]; then
+            echo "::error::Version mismatch: manifest.json=$manifest_version pyproject.toml=$project_version"
+            exit 1
+          fi
+
+      - name: Push validated main
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin HEAD:main
+
+  refresh-pr-branch:
+    name: Refresh upstream PR branch
+    needs: sync-main
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch upstream and PR branch
+        id: fetch
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch --no-tags upstream main
+
+          if ! git ls-remote --exit-code --heads origin "$PR_BRANCH" >/dev/null 2>&1; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "PR branch no longer exists; nothing to refresh"
+            exit 0
+          fi
+
+          git fetch --no-tags origin "$PR_BRANCH"
+          git checkout -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Rebase PR branch onto upstream
+        if: steps.fetch.outputs.exists == 'true'
+        id: rebase
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "$PR_BRANCH already contains upstream/main"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git rebase upstream/main; then
+            git rebase --abort || true
+            echo "::error::PR branch rebase conflicted. The remote PR branch was not changed. Resolve manually, then rerun this workflow."
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python and dependencies
+        if: steps.fetch.outputs.exists == 'true' && steps.rebase.outputs.changed == 'true'
+        uses: roquerodrigo/workflows/actions/setup-python@main
+        with:
+          python-version: "3.14"
+          groups: dev lint
+
+      - name: Validate rebased PR branch
+        if: steps.fetch.outputs.exists == 'true' && steps.rebase.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest
+
+      - name: Push refreshed PR branch
+        if: steps.fetch.outputs.exists == 'true' && steps.rebase.outputs.changed == 'true'
+        run: git push --force-with-lease origin "HEAD:$PR_BRANCH"
