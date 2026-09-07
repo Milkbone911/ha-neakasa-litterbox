@@ -18,13 +18,8 @@ if TYPE_CHECKING:
 
 _WEIGHT_UNIT_ALIASES = {
     "kg": UnitOfMass.KILOGRAMS,
-    "kgs": UnitOfMass.KILOGRAMS,
-    "kilogram": UnitOfMass.KILOGRAMS,
-    "kilograms": UnitOfMass.KILOGRAMS,
     "lb": UnitOfMass.POUNDS,
     "lbs": UnitOfMass.POUNDS,
-    "pound": UnitOfMass.POUNDS,
-    "pounds": UnitOfMass.POUNDS,
 }
 
 
@@ -49,7 +44,7 @@ class NeakasaCatWeightSensor(NeakasaCatEntity, SensorEntity):
 
     @property
     def native_unit_of_measurement(self) -> str:
-        """Return the unit attached to the latest visit weight."""
+        """Return the latest visit unit, falling back to the profile then kg."""
         payload: NeakasaPayload | None = self.coordinator.data
         if payload is None:
             return UnitOfMass.KILOGRAMS
@@ -66,8 +61,6 @@ class NeakasaCatWeightSensor(NeakasaCatEntity, SensorEntity):
             unit = _normalize_weight_unit(cat.unit)
             if unit is not None:
                 return unit
-        # Preserve the integration's historical behavior if the cloud gives us
-        # no usable unit rather than inventing a new interpretation.
         return UnitOfMass.KILOGRAMS
 
     @property
